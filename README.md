@@ -261,7 +261,7 @@ mcp-datos-gob-es/
 
 ## Créditos y licencia
 
-Proyecto independiente, no oficial, desarrollado por [Gurriato](https://github.com/Gurriato). Está inspirado en la estructura de distribución del [MCP del INE](https://github.com/manalejandro/mcp-ine) y en el ejercicio didáctico [Agente Conversacional con MCP server](https://github.com/Admindatosgobes/Laboratorio-de-Datos/tree/main/Data%20Science/Agente%20Conversacional%20con%20MCP%20server), cuyo README y notebook documentan el uso de la API de datos.gob.es con herramientas MCP. El diseño y la implementación de este repositorio se han realizado de forma independiente.
+Proyecto independiente, no oficial, desarrollado por [Gurriato](https://github.com/Gurriato). Está inspirado en la estructura de distribución del [proyecto de manalejandro MCP para el INE](https://github.com/manalejandro/mcp-ine) y en este repo [Agente Conversacional con MCP server](https://github.com/Admindatosgobes/Laboratorio-de-Datos/tree/main/Data%20Science/Agente%20Conversacional%20con%20MCP%20server), cuyo README y notebook documentan el uso de la API de datos.gob.es con herramientas MCP. El diseño y la implementación de este repositorio se han realizado de forma independiente.
 
 El código de este repositorio se distribuye bajo licencia [MIT](LICENSE). Los datos, metadatos y ficheros enlazados mantienen las licencias y condiciones definidas por sus respectivos publicadores. La titularidad y los términos de la API corresponden a [datos.gob.es](https://datos.gob.es/es/aviso-legal).
 
@@ -452,6 +452,6 @@ mcp-datos-gob-es/
 
 ### Credits and license
 
-An independent, unofficial project by [Gurriato](https://github.com/Gurriato), inspired by the structure of the [INE MCP server](https://github.com/manalejandro/mcp-ine) and the educational [Conversational Agent with MCP server](https://github.com/Admindatosgobes/Laboratorio-de-Datos/tree/main/Data%20Science/Agente%20Conversacional%20con%20MCP%20server). The latter's README and notebook demonstrate MCP tools for the datos.gob.es API; this repository's design and implementation were developed independently.
+An independent, unofficial project by [Gurriato](https://github.com/Gurriato), inspired by the structure of the [proyect of manalejandro about INE MCP server](https://github.com/manalejandro/mcp-ine) and the educational [Conversational Agent with MCP server](https://github.com/Admindatosgobes/Laboratorio-de-Datos/tree/main/Data%20Science/Agente%20Conversacional%20con%20MCP%20server). The latter's README and notebook demonstrate MCP tools for the datos.gob.es API; this repository's design and implementation were developed independently.
 
 The code in this repository is released under the [MIT License](LICENSE). Data, metadata, and linked files remain subject to the terms set by their respective publishers. See the [datos.gob.es legal notice](https://datos.gob.es/en/legal-notice) for information about the source API.
