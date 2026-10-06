@@ -1,0 +1,12 @@
+services:
+  mcp-datos-gob-es:
+    build: .
+    container_name: mcp-datos-gob-es
+    ports:
+      - "3000:3000"
+    environment:
+      MCP_HOST: 0.0.0.0
+      MCP_PORT: 3000
+      DATOS_GOB_ES_TIMEOUT_MS: 15000
+      DATOS_GOB_ES_CACHE_TTL_MS: 300000
+    restart: unless-stopped

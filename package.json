@@ -1,0 +1,41 @@
+{
+  "name": "mcp-datos-gob-es",
+  "version": "1.0.0",
+  "description": "Servidor MCP para explorar el Catálogo Nacional de Datos Abiertos de datos.gob.es",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "start:stdio": "node dist/index.js --stdio",
+    "dev": "tsx watch src/index.ts",
+    "dev:worker": "wrangler dev",
+    "deploy": "npm run build && wrangler deploy",
+    "clean": "node -e \"import('node:fs').then(fs => fs.rmSync('dist', {recursive:true, force:true}))\"",
+    "test": "npm run build && node test/smoke.mjs",
+    "test:live": "npm run build && node test/smoke.mjs --live"
+  },
+  "keywords": [
+    "mcp",
+    "datos-gob-es",
+    "open-data",
+    "datos-abiertos",
+    "spain",
+    "cloudflare-workers",
+    "model-context-protocol"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.17.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0",
+    "wrangler": "^4.20.0"
+  }
+}
