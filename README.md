@@ -24,6 +24,7 @@ Servidor **Model Context Protocol (MCP)** para consultar el catálogo de datos a
 - **5 herramientas MCP** para buscar conjuntos de datos, explorar temas, obtener fichas y consultar totales del catálogo.
 - **Tres formas de conexión**: Streamable HTTP, SSE clásico y `stdio`.
 - **Cloudflare Workers** para publicar un endpoint remoto sin mantener un servidor Node.js.
+- Sesiones SSE persistentes en Cloudflare mediante Durable Objects, compatibles con varias instancias del Worker.
 - **Ejecución local** con Node.js o Docker Compose.
 - **API sin clave**: consume la API pública de datos.gob.es.
 - **Respuestas normalizadas en español**, incluso cuando la API devuelve campos multilingües.
@@ -185,6 +186,8 @@ npm run dev:worker     # desarrollo local, http://localhost:8787
 npm run deploy         # publica mcp-datos-gob-es en Cloudflare
 ```
 
+La configuración incluye la migración del Durable Object que mantiene las sesiones SSE. Wrangler la aplica durante el despliegue.
+
 Comprueba el Worker una vez publicado:
 
 ```bash
@@ -277,6 +280,7 @@ This **Model Context Protocol (MCP)** server provides access to the [datos.gob.e
 - **5 MCP tools** to search datasets, explore themes, retrieve records, and query catalog statistics.
 - **Three connection options**: Streamable HTTP, legacy SSE, and `stdio`.
 - **Cloudflare Workers** deployment for a remote endpoint without managing a Node.js server.
+- Persistent Cloudflare SSE sessions backed by Durable Objects, including across Worker instances.
 - **Local execution** with Node.js or Docker Compose.
 - **No API key required**: uses the public datos.gob.es API.
 - **Spanish-normalised responses**, including multilingual API fields.
@@ -388,6 +392,8 @@ npx wrangler login
 npm run dev:worker     # local development at http://localhost:8787
 npm run deploy         # publish the Worker to Cloudflare
 ```
+
+The configuration includes the Durable Object migration required for persistent SSE sessions. Wrangler applies it during deployment.
 
 For local development and tests, run `npm run build`, `npm test`, and optionally `npm run test:live`. Start Docker with `docker compose up --build`.
 

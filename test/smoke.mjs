@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import worker from '../dist/worker.js';
+import worker, { SseSessionDO } from '../dist/worker.js';
 
 async function rpc(method, params = {}, id = 1) {
   const response = await worker.fetch(new Request('http://localhost/mcp', {
@@ -55,6 +55,31 @@ assert.equal(ssePost.status, 202);
 const messageEvent = new TextDecoder().decode((await sseReader.read()).value);
 assert.match(messageEvent, /"method":"ping"|"result":\{\}/);
 await sseReader.cancel();
+
+const durableSessions = new Map();
+const durableNamespace = {
+  newUniqueId: () => ({ toString: () => 'durable-session-smoke' }),
+  idFromString: (id) => ({ toString: () => id }),
+  get: (id) => {
+    const sessionId = id.toString();
+    if (!durableSessions.has(sessionId)) durableSessions.set(sessionId, new SseSessionDO({ id }));
+    return { fetch: (request) => durableSessions.get(sessionId).fetch(request) };
+  },
+};
+const durableEnv = { SSE_SESSIONS: durableNamespace };
+const durableSse = await worker.fetch(new Request('http://localhost/sse'), durableEnv);
+const durableReader = durableSse.body.getReader();
+const durableEndpoint = new TextDecoder().decode((await durableReader.read()).value);
+const durableSessionId = new URL(`http://localhost${durableEndpoint.match(/data: ([^\r\n]+)/)?.[1]}`).searchParams.get('sessionId');
+const durablePost = await worker.fetch(new Request(`http://localhost/message?sessionId=${durableSessionId}`, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ jsonrpc: '2.0', method: 'ping', id: 9 }),
+}), durableEnv);
+assert.equal(durablePost.status, 202);
+const durableMessage = new TextDecoder().decode((await durableReader.read()).value);
+assert.match(durableMessage, /"id":9,"result":\{\}/);
+await durableReader.cancel();
 
 const serverPath = fileURLToPath(new URL('../dist/index.js', import.meta.url));
 const stdioTransport = new StdioClientTransport({ command: process.execPath, args: [serverPath, '--stdio'] });

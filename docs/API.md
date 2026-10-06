@@ -4,7 +4,7 @@
 
 - `src/api-client.ts`: encapsula las solicitudes a datos.gob.es, aplica timeout y caché TTL limitada.
 - `src/tools.ts`: declara los esquemas que descubre el cliente MCP, valida argumentos y normaliza las respuestas de la API.
-- `src/worker.ts`: implementa Streamable HTTP (`POST /mcp`), SSE clásico (`GET /sse`, `POST /message`), la página de información y `/health` usando APIs web estándar.
+- `src/worker.ts`: implementa Streamable HTTP (`POST /mcp`), SSE clásico (`GET /sse`, `POST /message`), la página de información y `/health` usando APIs web estándar. En Cloudflare, las sesiones SSE se enrutan a Durable Objects para compartir el estado entre peticiones.
 - `src/index.ts`: expone el mismo Worker en HTTP local y añade stdio mediante `@modelcontextprotocol/sdk`.
 
 ```text
@@ -63,6 +63,8 @@ El endpoint opera sin estado de sesión y devuelve respuestas JSON. Las notifica
 
 - `GET /sse`: abre un stream y entrega el evento `endpoint` con la ruta de envío `/message?sessionId=...`.
 - `POST /message?sessionId=...`: envía peticiones JSON-RPC; las respuestas se reciben en el stream SSE.
+
+En Cloudflare, el ID de sesión identifica un Durable Object `SseSessionDO`. Así el stream y sus peticiones POST llegan a la misma instancia con estado; el servidor Node local mantiene las sesiones en memoria del proceso. `wrangler.toml` declara el binding y la migración con SQLite.
 
 ### Otros endpoints
 

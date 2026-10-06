@@ -16,11 +16,29 @@ interface JsonRpcMessage {
   id?: unknown;
 }
 
-interface SseSession {
+interface SseConnection {
   send: (event: string, data: string) => void;
 }
 
-const sseSessions = new Map<string, SseSession>();
+interface DurableObjectIdLike {
+  toString(): string;
+}
+
+interface DurableObjectStubLike {
+  fetch(request: Request): Promise<Response>;
+}
+
+interface DurableObjectNamespaceLike {
+  newUniqueId(): DurableObjectIdLike;
+  idFromString(id: string): DurableObjectIdLike;
+  get(id: DurableObjectIdLike): DurableObjectStubLike;
+}
+
+export interface Env {
+  SSE_SESSIONS?: DurableObjectNamespaceLike;
+}
+
+const localSseSessions = new Map<string, SseConnection>();
 
 function json(payload: unknown, status = 200, extraHeaders: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(payload), {
@@ -121,14 +139,14 @@ function createSseResponse(sessionId: string): Response {
   let controller: ReadableStreamDefaultController<Uint8Array> | undefined;
   const stream = new ReadableStream<Uint8Array>({
     start(streamController) { controller = streamController; },
-    cancel() { sseSessions.delete(sessionId); },
+    cancel() { localSseSessions.delete(sessionId); },
   });
-  sseSessions.set(sessionId, {
+  localSseSessions.set(sessionId, {
     send(event, data) {
-      try { controller?.enqueue(encoder.encode(`event: ${event}\ndata: ${data}\n\n`)); } catch { sseSessions.delete(sessionId); }
+      try { controller?.enqueue(encoder.encode(`event: ${event}\ndata: ${data}\n\n`)); } catch { localSseSessions.delete(sessionId); }
     },
   });
-  sseSessions.get(sessionId)?.send('endpoint', `/message?sessionId=${encodeURIComponent(sessionId)}`);
+  localSseSessions.get(sessionId)?.send('endpoint', `/message?sessionId=${encodeURIComponent(sessionId)}`);
   return new Response(stream, {
     status: 200,
     headers: { ...CORS_HEADERS, 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive' },
@@ -137,7 +155,7 @@ function createSseResponse(sessionId: string): Response {
 
 async function handleSseMessage(request: Request, url: URL): Promise<Response> {
   const sessionId = url.searchParams.get('sessionId');
-  const session = sessionId ? sseSessions.get(sessionId) : undefined;
+  const session = sessionId ? localSseSessions.get(sessionId) : undefined;
   if (!session) return json({ error: 'No existe una sesión SSE activa. Abre primero GET /sse.' }, 404);
   let message: unknown;
   try { message = await request.json(); } catch { return json(error(-32700, 'Parse error.'), 400); }
@@ -145,6 +163,82 @@ async function handleSseMessage(request: Request, url: URL): Promise<Response> {
   const outcome = await dispatch(message as JsonRpcMessage);
   if (outcome.payload !== null && outcome.status !== 202) session.send('message', JSON.stringify(outcome.payload));
   return new Response(null, { status: 202, headers: CORS_HEADERS });
+}
+
+/**
+ * Cloudflare routes each session through a Durable Object so the SSE stream
+ * and its POST messages always reach the same stateful instance.
+ */
+export class SseSessionDO {
+  private readonly sessionId: string;
+  private controller?: ReadableStreamDefaultController<Uint8Array>;
+
+  constructor(state: { id: { toString(): string } }) {
+    this.sessionId = state.id.toString();
+  }
+
+  async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+    if (request.method === 'GET' && url.pathname === '/sse') return this.openStream();
+    if (request.method === 'POST' && url.pathname === '/message') return this.handleMessage(request);
+    return json({ error: 'Not Found' }, 404);
+  }
+
+  private openStream(): Response {
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      start: (controller) => {
+        this.controller = controller;
+        controller.enqueue(encoder.encode(`event: endpoint\ndata: /message?sessionId=${encodeURIComponent(this.sessionId)}\n\n`));
+      },
+      cancel: () => { this.controller = undefined; },
+    });
+    return new Response(stream, {
+      status: 200,
+      headers: { ...CORS_HEADERS, 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive' },
+    });
+  }
+
+  private async handleMessage(request: Request): Promise<Response> {
+    let message: unknown;
+    try { message = await request.json(); } catch { return json(error(-32700, 'Parse error.'), 400); }
+    if (!isRecord(message)) return json(error(-32600, 'Invalid Request.'), 400);
+
+    try {
+      const outcome = await dispatch(message as JsonRpcMessage);
+      if (outcome.payload !== null && outcome.status !== 202) {
+        this.controller?.enqueue(new TextEncoder().encode(`event: message\ndata: ${JSON.stringify(outcome.payload)}\n\n`));
+      }
+      return new Response(null, { status: 202, headers: CORS_HEADERS });
+    } catch (cause) {
+      const messageText = cause instanceof Error ? cause.message : 'Error interno del servidor.';
+      const payload = error(-32603, messageText, (message as JsonRpcMessage).id);
+      this.controller?.enqueue(new TextEncoder().encode(`event: message\ndata: ${JSON.stringify(payload)}\n\n`));
+      return new Response(null, { status: 202, headers: CORS_HEADERS });
+    }
+  }
+}
+
+async function handleDurableSse(
+  request: Request,
+  url: URL,
+  namespace: DurableObjectNamespaceLike,
+): Promise<Response> {
+  if (request.method === 'GET') {
+    const id = namespace.newUniqueId();
+    return namespace.get(id).fetch(new Request('https://sse-session/sse'));
+  }
+
+  const sessionId = url.searchParams.get('sessionId');
+  if (!sessionId) return json({ error: 'Falta el parámetro sessionId.' }, 400);
+  let id: DurableObjectIdLike;
+  try { id = namespace.idFromString(sessionId); } catch { return json({ error: 'El sessionId no es válido.' }, 400); }
+  const body = await request.arrayBuffer();
+  return namespace.get(id).fetch(new Request('https://sse-session/message', {
+    method: 'POST',
+    headers: request.headers,
+    body,
+  }));
 }
 
 function health(): Response {
@@ -189,14 +283,22 @@ function landing(request: Request): Response {
 }
 
 const worker = {
-  async fetch(request: Request): Promise<Response> {
+  async fetch(request: Request, env?: Env): Promise<Response> {
     const url = new URL(request.url);
     const method = request.method.toUpperCase();
     if (method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS_HEADERS });
 
     if (method === 'POST' && ['/mcp', '/mcp/'].includes(url.pathname)) return handleMcpPost(request);
-    if (method === 'GET' && ['/sse', '/sse/'].includes(url.pathname)) return createSseResponse(crypto.randomUUID());
-    if (method === 'POST' && ['/message', '/message/'].includes(url.pathname)) return handleSseMessage(request, url);
+    if (method === 'GET' && ['/sse', '/sse/'].includes(url.pathname)) {
+      return env?.SSE_SESSIONS
+        ? handleDurableSse(request, url, env.SSE_SESSIONS)
+        : createSseResponse(crypto.randomUUID());
+    }
+    if (method === 'POST' && ['/message', '/message/'].includes(url.pathname)) {
+      return env?.SSE_SESSIONS
+        ? handleDurableSse(request, url, env.SSE_SESSIONS)
+        : handleSseMessage(request, url);
+    }
     if (method === 'GET' && ['/health', '/health/'].includes(url.pathname)) return health();
     if (method === 'GET' && url.pathname === '/') return landing(request);
     if (url.pathname === '/mcp' || url.pathname === '/mcp/') {
